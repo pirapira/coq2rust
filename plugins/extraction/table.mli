@@ -141,7 +141,7 @@ val file_comment : unit -> string
 
 (*s Target language. *)
 
-type lang = Ocaml | Haskell | Scheme
+type lang = Ocaml | Haskell | Scheme | Rust
 val lang : unit -> lang
 
 (*s Extraction modes: modular or monolithic, library or minimal ?

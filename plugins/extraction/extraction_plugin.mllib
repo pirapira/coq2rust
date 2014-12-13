@@ -6,6 +6,7 @@ Common
 Ocaml
 Haskell
 Scheme
+Rust
 Extract_env
 G_extraction
 Extraction_plugin_mod

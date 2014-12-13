@@ -553,7 +553,7 @@ let _ = declare_string_option
 
 (*s Extraction Lang *)
 
-type lang = Ocaml | Haskell | Scheme
+type lang = Ocaml | Haskell | Scheme | Rust
 
 let lang_ref = Summary.ref Ocaml ~name:"ExtrLang"
 
