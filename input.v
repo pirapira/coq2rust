@@ -18,5 +18,12 @@ Inductive double : Set :=
 .
 
 Definition d : double := d0 tt.
+Definition e : double := d1.
 
-Recursive Extraction n m o emp single double d.
+Inductive two_arg : Set :=
+| ta : unit -> unit -> two_arg
+.
+
+Definition tv : two_arg := ta tt tt.
+
+Recursive Extraction n m o emp single double d e two_arg tv.
