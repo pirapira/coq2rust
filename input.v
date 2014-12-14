@@ -28,4 +28,12 @@ Definition tv : two_arg := ta tt tt.
 
 Definition num : nat := 2.
 
+(*
+Definition f (d :double) :=
+  match d with
+  | d0 _ => tt
+  | d1   => tt
+  end.
+*)
+
 Recursive Extraction n m o emp single double d e two_arg tv num.

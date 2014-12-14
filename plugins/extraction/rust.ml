@@ -1,5 +1,5 @@
 (* Yoichi Hirai, 2015.
-   containing copies from scheme.ml, haskell.ml
+   containing copies from scheme.ml, haskell.ml, and ocaml.ml
 *)
 
 open Miniml
@@ -35,7 +35,6 @@ let rec pp_type par vl t =
 	    (str (pp_global Type r) ++ spc () ++
 	     prlist_with_sep spc (pp_type true vl) l)
     | Tarr (t1,t2) ->
-      let _ = failwith "arrow has to be changed" in
 	pp_par par
 	  (pp_rec true t1 ++ spc () ++ str "->" ++ spc () ++ pp_rec false t2)
     | Tdummy _ -> str "()"
@@ -96,6 +95,16 @@ let rec pp_ind kn i ind =
 	pp_one_ind ip p.ip_vars p.ip_types ++ fnl () ++
 	pp_ind kn (i+1) ind
 
+let pr_binding (lst : Id.t list) : std_ppcmds =
+  match lst with
+    | [] -> str "()"
+    | l -> pp_par true (prlist_with_sep (fun () -> str ", ") pr_id l)
+
+let expr_needs_par = function
+  | MLlam _  -> true
+  | MLcase (_,_,[|_|]) -> false
+  | MLcase (_,_,pv) -> true
+  | _        -> false
 
 
 let rec pp_expr par env args =
@@ -188,17 +197,51 @@ let rec pp_expr par env args =
       failwith "MLmagic not implemented"
 	(* pp_apply (str "unsafeCoerce") par (pp_expr true env [] a :: args) *)
     | MLaxiom -> pp_par par (str "Prelude.error \"AXIOM TO BE REALIZED\"")
+and pp_gen_pat ids env = function
+  | Pcons (r, l) -> failwith "pp_gen_pat0" (* pp_cons_pat r (List.map (pp_gen_pat ids env) l) *)
+  | Pusual r -> failwith "pp_gen_pat1" (* pp_cons_pat r (List.map pr_id ids) *)
+  | Ptuple l -> failwith "pp_gen_pat2" (* pp_boxed_tuple (pp_gen_pat ids env) l*)
+  | Pwild -> str "_"
+  | Prel n -> pr_id (get_db_name n env)
+
+and pp_one_pat env (ids,p,t) =
+  let ids',env' = push_vars (List.rev_map id_of_mlid ids) env in
+  pp_gen_pat (List.rev ids') env' p,
+  pp_expr (expr_needs_par t) env' [] t
+
+and pp_pat env pv =
+  prvecti
+    (fun i x ->
+       let s1,s2 = pp_one_pat env x in
+       hv 2 (hov 4 (str "| " ++ s1 ++ str " ->") ++ spc () ++ hov 2 s2) ++
+       if Int.equal i (Array.length pv - 1) then mt () else fnl ())
+    pv
+
 and pp_function env f t typ =
   let bl,t' = collect_lams t in
   let bl,env' = push_vars (List.map id_of_mlid bl) env in
-  (str "fn " ++ f ++ pr_binding (List.rev bl) ++
-     str "()" ++
-     str "-> " ++ pp_type false [] typ ++
-     str " {" ++ fnl () ++ str "  " ++
-     hov 2 (pp_expr false env' [] t')) ++ fnl () ++ str "}"
+  match t' with
+    | MLcase(Tglob(r,_),MLrel 1,pv) when
+	let _ = failwith "pp_function MLcase not implemented" in
+	not (is_coinductive r) && List.is_empty (get_record_fields r) &&
+	not (is_custom_match pv) ->
+	if not (ast_occurs 1 (MLcase(Tunknown,MLdummy,pv))) then
+	  pr_binding (List.rev (List.tl bl)) ++
+       	  str " = function" ++ fnl () ++
+	  v 0 (pp_pat env' pv)
+	else
+          pr_binding (List.rev bl) ++
+          str " = match " ++ pr_id (List.hd bl) ++ str " with" ++ fnl () ++
+	  v 0 (pp_pat env' pv)
+    | _ ->
+     (pr_binding (List.rev bl)) ++ str " -> " ++ pp_type false [] typ ++
+	  str " {" ++ fnl () ++ str "  " ++
+	  hov 2 (pp_expr false env' [] t') ++ fnl() ++ str "}"
 and pp_box_expr par env args term =
   pp_par par ((str "box ") ++ pp_expr false env args term)
 
+let pp_fn e typ =
+  hov 4 (str "// " ++ e ++ str " :" ++ spc () ++ pp_type false [] typ)  ++ fnl2 ()
 
 let pp_decl : ml_decl -> Pp.std_ppcmds = function
   | Dind (kn, ind) when ind.ind_kind = Singleton ->
@@ -214,7 +257,9 @@ let pp_decl : ml_decl -> Pp.std_ppcmds = function
 	  failwith "custom term printing not implemented"
 	  (* hov 0 (e ++ str " = " ++ str (find_custom r) ++ fnl2 ()) *)
 	else
-	  hov 0 (pp_function (empty_env ()) e a t ++ fnl2 ())
+	  let name = str (pp_global Term r) in
+	  pp_fn name t ++
+	  hov 0 (str "fn " ++ name ++ pp_function (empty_env ()) e a t ++ fnl2 ())
   | Dfix (_, _, _) -> failwith "Dfix not implemented"
 
 let rec pp_structure_elem = function
