@@ -6,6 +6,10 @@ Definition m : bool := true.
 
 Inductive emp : Set := .
 
-Extraction emp.
+Inductive single : Set :=
+| s : unit -> single
+.
 
-Recursive Extraction n m.
+Definition o : single := s tt.
+
+Recursive Extraction n m emp single.

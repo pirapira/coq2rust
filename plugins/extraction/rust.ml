@@ -6,6 +6,7 @@ open Miniml
 open Util
 open Pp
 open Names
+open Nameops
 open Table
 open Common
 open Globnames
@@ -49,15 +50,15 @@ let pp_one_ind ip pl cv =
     (str (pp_global Cons r) ++
      match l with
        | [] -> (mt ())
-       | _  -> (str " " ++
+       | _  -> (str "(" ++
       	       	prlist_with_sep
-		  (fun () -> (str " ")) (pp_type true pl) l))
+		  (fun () -> (str ", ")) (pp_type true pl) l)
+	        ++ str ")"
+               )
   in
   str "enum " ++
   str (pp_global Type (IndRef ip)) ++
   (prlist_strict (fun id -> str " " ++ (Nameops.pr_id id)) pl) ++ str " {" ++
-(*      if Array.is_empty cv then str " {} // empty inductive" *)
-(*      else *)
     fnl () ++ str " " ++
        v 0 (  prvect_with_sep (fun () -> str "," ++ fnl()) pp_constructor
 		(Array.mapi (fun i c -> ConstructRef (ip,i+1),c) cv))
@@ -67,6 +68,16 @@ let pp_logical_ind packet =
   pp_comment (Nameops.pr_id packet.ip_typename ++ str " : logical inductive") ++
   pp_comment (str "with constructors : " ++
 	      prvect_with_sep spc Nameops.pr_id packet.ip_consnames)
+
+let pp_singleton kn packet =
+  let l = rename_tvars keywords packet.ip_vars in
+  let l' = List.rev l in
+  hov 2 (str "type " ++ str (pp_global Type (IndRef (kn,0))) ++ spc () ++
+	 prlist_with_sep spc pr_id l ++
+	 (if not (List.is_empty l) then str " " else mt ()) ++ str "=" ++ spc () ++
+	 pp_type false l' (List.hd packet.ip_types.(0)) ++ str ";" ++ fnl () ++
+	 pp_comment (str "singleton inductive, whose constructor was " ++
+		     pr_id packet.ip_consnames.(0)))
 
 let rec pp_ind kn i ind =
   if i >= Array.length ind.ind_packets then
@@ -182,7 +193,8 @@ and pp_function env f t typ =
      hov 2 (pp_expr false env' [] t')) ++ fnl () ++ str "}"
 
 let pp_decl : ml_decl -> Pp.std_ppcmds = function
-  | Dind (kn, ind) when ind.ind_kind = Singleton -> failwith "singleton not implemented"
+  | Dind (kn, ind) when ind.ind_kind = Singleton ->
+      pp_singleton kn ind.ind_packets.(0) ++ fnl ()
   | Dind (kn, ind) ->
     hov 0 (pp_ind kn 0 ind)
   | Dtype (_, _, _) -> failwith "Dtype not implemented"
