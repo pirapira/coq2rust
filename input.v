@@ -12,4 +12,4 @@ Inductive single : Set :=
 
 Definition o : single := s tt.
 
-Recursive Extraction n m emp single.
+Recursive Extraction n m o emp single.
