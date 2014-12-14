@@ -43,6 +43,8 @@ let rec pp_type par vl t =
  in
   hov 0 (pp_rec par t)
 
+let pr_typed_id (id, typ) = str (Id.to_string id) ++ str ": " ++ pp_type false [] typ
+
 let pp_box_type par vl t =
   str "Box<" ++ (pp_type par vl t) ++ str ">"
 
@@ -95,10 +97,10 @@ let rec pp_ind kn i ind =
 	pp_one_ind ip p.ip_vars p.ip_types ++ fnl () ++
 	pp_ind kn (i+1) ind
 
-let pr_binding (lst : Id.t list) : std_ppcmds =
+let pr_binding (lst : (Id.t * ml_type) list) : std_ppcmds =
   match lst with
     | [] -> str "()"
-    | l -> pp_par true (prlist_with_sep (fun () -> str ", ") pr_id l)
+    | l -> pp_par true (prlist_with_sep (fun () -> str ", ") pr_typed_id l)
 
 let expr_needs_par = function
   | MLlam _  -> true
@@ -106,6 +108,31 @@ let expr_needs_par = function
   | MLcase (_,_,pv) -> true
   | _        -> false
 
+
+(*s [collect_lams MLlam(id1,...MLlam(idn,t)...)] returns
+    [[idn;...;id1]] and the term [t]. *)
+
+let collect_lams =
+  let rec collect acc = function
+    | (MLlam(id,t), Tarr (a, b)) -> collect ((id, a)::acc) (t,b)
+    | (x,y)           -> acc,x,y
+  in collect []
+
+let rec rename_vars avoid = function
+  | [] ->
+      [], avoid
+  | (id, t) :: idl when id == dummy_name ->
+      (* we don't rename dummy binders *)
+      let (idl', avoid') = rename_vars avoid idl in
+      ((id, t) :: idl', avoid')
+  | (id, t) :: idl ->
+      let (idl, avoid) = rename_vars avoid idl in
+      let id = rename_id (lowercase_id id) avoid in
+      ((id, t) :: idl, Id.Set.add id avoid)
+
+let push_vars ids ((db,avoid) : Common.env) =
+  let ids',avoid' = rename_vars avoid ids in
+  ids', ((List.map fst ids') @ db, avoid')
 
 let rec pp_expr par env args =
   let apply st = pp_apply st par args
@@ -205,7 +232,7 @@ and pp_gen_pat ids env = function
   | Prel n -> pr_id (get_db_name n env)
 
 and pp_one_pat env (ids,p,t) =
-  let ids',env' = push_vars (List.rev_map id_of_mlid ids) env in
+  let ids',env' = Common.push_vars (List.rev_map id_of_mlid ids) env in
   pp_gen_pat (List.rev ids') env' p,
   pp_expr (expr_needs_par t) env' [] t
 
@@ -218,21 +245,22 @@ and pp_pat env pv =
     pv
 
 and pp_function env f t typ =
-  let bl,t' = collect_lams t in
-  let bl,env' = push_vars (List.map id_of_mlid bl) env in
+  let bl,t',typ = collect_lams (t, typ) (* collect_lambs should work on type as well *) in
+  let bl = List.map (fun i -> (id_of_mlid (fst i), snd i)) bl in
+  let bl,env' = push_vars bl env in
   match t' with
     | MLcase(Tglob(r,_),MLrel 1,pv) when
-	let _ = failwith "pp_function MLcase not implemented" in
 	not (is_coinductive r) && List.is_empty (get_record_fields r) &&
 	not (is_custom_match pv) ->
-	if not (ast_occurs 1 (MLcase(Tunknown,MLdummy,pv))) then
+	failwith "pp_function MLcase not implemented"
+(*	if not (ast_occurs 1 (MLcase(Tunknown,MLdummy,pv))) then
 	  pr_binding (List.rev (List.tl bl)) ++
        	  str " = function" ++ fnl () ++
 	  v 0 (pp_pat env' pv)
 	else
           pr_binding (List.rev bl) ++
           str " = match " ++ pr_id (List.hd bl) ++ str " with" ++ fnl () ++
-	  v 0 (pp_pat env' pv)
+	  v 0 (pp_pat env' pv)*)
     | _ ->
      (pr_binding (List.rev bl)) ++ str " -> " ++ pp_type false [] typ ++
 	  str " {" ++ fnl () ++ str "  " ++

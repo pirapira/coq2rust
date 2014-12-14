@@ -11,6 +11,8 @@ open Globnames
 open Miniml
 open Pp
 
+val lowercase_id : Names.Id.t -> Names.Id.t
+
 (** By default, in module Format, you can do horizontal placing of blocks
     even if they include newlines, as long as the number of chars in the
     blocks are less that a line length. To avoid this awkward situation,
