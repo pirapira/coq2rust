@@ -137,8 +137,8 @@ let rec pp_expr par env args =
 	    pp_type false [(* TODO: really empty? *)] typ
 	     ++ str "::" ++ str (pp_global Cons r)
 	  | [a] ->
-	    let _ = failwith "singleton MLcons not implemented" in
-	    pp_par par (str (pp_global Cons r) ++ spc () ++ pp_expr true env [] a)
+	    pp_par par ((pp_type false [] typ) ++ str "::" ++ str (pp_global Cons r)
+		         ++ pp_par true (pp_expr true env [] a))
 	  | _ ->
 	    let _ = failwith "other MLcons not implemented" in
 	    pp_par par (str (pp_global Cons r) ++ spc () ++

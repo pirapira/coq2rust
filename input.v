@@ -12,4 +12,11 @@ Inductive single : Set :=
 
 Definition o : single := s tt.
 
-Recursive Extraction n m o emp single.
+Inductive double : Set :=
+| d0 : unit -> double
+| d1 : double
+.
+
+Definition d : double := d0 tt.
+
+Recursive Extraction n m o emp single double d.
