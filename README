@@ -1,3 +1,12 @@
+coq2rust
+
+try
+$ ./configure -local
+$ ./compele.sh
+at this directory.
+
+Below is the original Coq README
+
 
                	         THE COQ V8 SYSTEM
             	         =================
