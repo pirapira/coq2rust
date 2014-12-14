@@ -591,6 +591,10 @@ let pp_global k r =
   let ls = ref_renaming (k,r) in
   assert (List.length ls > 1);
   let s = List.hd ls in
+  let s =
+    match lang (), k with
+    | Rust, Type -> String.capitalize s
+    | _, _ -> s in
   let mp,_,l = repr_of_r r in
   if ModPath.equal mp (top_visible_mp ()) then
     (* simpliest situation: definition of r (or use in the same context) *)
@@ -602,6 +606,7 @@ let pp_global k r =
       | Scheme -> unquote s (* no modular Scheme extraction... *)
       | Haskell -> if modular () then pp_haskell_gen k mp rls else s
       | Ocaml -> pp_ocaml_gen k mp rls (Some l)
+      | Rust -> failwith "pp_global this case not implemented"
 
 (* The next function is used only in Ocaml extraction...*)
 
