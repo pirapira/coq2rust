@@ -44,6 +44,9 @@ let rec pp_type par vl t =
  in
   hov 0 (pp_rec par t)
 
+let pp_box_type par vl t =
+  str "Box<" ++ (pp_type par vl t) ++ str ">"
+
 let pp_one_ind ip pl cv =
   let pl : Id.t list = rename_tvars keywords pl in
   let pp_constructor (r,l) =
@@ -52,7 +55,7 @@ let pp_one_ind ip pl cv =
        | [] -> (mt ())
        | _  -> (str "(" ++
       	       	prlist_with_sep
-		  (fun () -> (str ", ")) (pp_type true pl) l)
+		  (fun () -> (str ", ")) (pp_box_type true pl) l)
 	        ++ str ")"
                )
   in
@@ -92,6 +95,8 @@ let rec pp_ind kn i ind =
       else
 	pp_one_ind ip p.ip_vars p.ip_types ++ fnl () ++
 	pp_ind kn (i+1) ind
+
+
 
 let rec pp_expr par env args =
   let apply st = pp_apply st par args
@@ -138,11 +143,11 @@ let rec pp_expr par env args =
 	     ++ str "::" ++ str (pp_global Cons r)
 	  | [a] ->
 	    pp_par par ((pp_type false [] typ) ++ str "::" ++ str (pp_global Cons r)
-		         ++ pp_par true (pp_expr true env [] a))
+		         ++ pp_par true (pp_box_expr true env [] a))
 	  | _ ->
 	    pp_par par ((pp_type false [] typ) ++ str "::" ++ str (pp_global Cons r) ++
                         pp_par true (prlist_with_sep (fun _ -> str ", ")
-                                     (pp_expr true env []) a))
+                                     (pp_box_expr true env []) a))
 	end
     | MLtuple l ->
       failwith "MLtuple not implemented"
@@ -191,6 +196,9 @@ and pp_function env f t typ =
      str "-> " ++ pp_type false [] typ ++
      str " {" ++ fnl () ++ str "  " ++
      hov 2 (pp_expr false env' [] t')) ++ fnl () ++ str "}"
+and pp_box_expr par env args term =
+  pp_par par ((str "box ") ++ pp_expr false env args term)
+
 
 let pp_decl : ml_decl -> Pp.std_ppcmds = function
   | Dind (kn, ind) when ind.ind_kind = Singleton ->
