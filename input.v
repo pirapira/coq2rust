@@ -4,5 +4,8 @@ Definition n : unit := tt.
 
 Definition m : bool := true.
 
-Recursive Extraction n m.
+Inductive emp : Set := .
 
+Extraction emp.
+
+Recursive Extraction n m.

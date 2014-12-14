@@ -53,17 +53,15 @@ let pp_one_ind ip pl cv =
       	       	prlist_with_sep
 		  (fun () -> (str " ")) (pp_type true pl) l))
   in
-  str (if Array.is_empty cv then "type " else "enum ") ++
+  str "enum " ++
   str (pp_global Type (IndRef ip)) ++
   (prlist_strict (fun id -> str " " ++ (Nameops.pr_id id)) pl) ++ str " {" ++
-    begin
-      if Array.is_empty cv then (let _ = failwith "how to print empty inductive" in str " () -- empty inductive")
-      else
-	(fnl () ++ str " " ++
-	   v 0 (  prvect_with_sep (fun () -> str "," ++ fnl()) pp_constructor
-		  (Array.mapi (fun i c -> ConstructRef (ip,i+1),c) cv)))
-    end ++ fnl() ++
-  str "}" ++ fnl()
+(*      if Array.is_empty cv then str " {} // empty inductive" *)
+(*      else *)
+    fnl () ++ str " " ++
+       v 0 (  prvect_with_sep (fun () -> str "," ++ fnl()) pp_constructor
+		(Array.mapi (fun i c -> ConstructRef (ip,i+1),c) cv))
+    ++ fnl() ++ str "}" ++ fnl()
 
 let pp_logical_ind packet =
   pp_comment (Nameops.pr_id packet.ip_typename ++ str " : logical inductive") ++
