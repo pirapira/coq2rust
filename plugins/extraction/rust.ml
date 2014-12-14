@@ -60,8 +60,7 @@ let pp_one_ind ip pl cv =
       if Array.is_empty cv then (let _ = failwith "how to print empty inductive" in str " () -- empty inductive")
       else
 	(fnl () ++ str " " ++
-	   v 0 (str "  " ++
-		  prvect_with_sep (fun () -> str "," ++ fnl()) pp_constructor
+	   v 0 (  prvect_with_sep (fun () -> str "," ++ fnl()) pp_constructor
 		  (Array.mapi (fun i c -> ConstructRef (ip,i+1),c) cv)))
     end ++ fnl() ++
   str "}" ++ fnl()
