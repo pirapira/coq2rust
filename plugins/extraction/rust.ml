@@ -19,6 +19,15 @@ let pp_comment s = str "// " ++ s ++ fnl ()
 let pp_sig : ml_signature -> Pp.std_ppcmds = function
   | _ -> mt () (* TODO: should be improved *)
 
+let pp_cons c =
+  let typ = str (pp_global Type (IndRef (inductive_of_constructor c))) in
+  typ ++ str "::" ++ str (Common.pp_global Cons (ConstructRef c))
+
+let pp_global k (r : global_reference) (cons_with_type : bool) =
+  match k, r, cons_with_type with
+    | Cons, ConstructRef c, true -> pp_cons c
+    | _ -> str (Common.pp_global k r)
+
 (*s Pretty-printing of types. [par] is a boolean indicating whether parentheses
     are needed or not. *)
 
@@ -26,13 +35,13 @@ let rec pp_type par vl t =
   let rec pp_rec par = function
     | Tmeta _ | Tvar' _ -> assert false
     | Tvar i -> str "a" ++ int i
-    | Tglob (r,[]) -> str (pp_global Type r)
+    | Tglob (r,[]) -> pp_global Type r false
     | Tglob (IndRef(kn,0),l)
 	when not (keep_singleton ()) && MutInd.equal kn (mk_ind "Coq.Init.Specif" "sig") ->
 	  pp_type true vl (List.hd l)
     | Tglob (r,l) ->
 	  pp_par par
-	    (str (pp_global Type r) ++ spc () ++
+	    (pp_global Type r false ++ spc () ++
 	     prlist_with_sep spc (pp_type true vl) l)
     | Tarr (t1,t2) ->
 	pp_par par
@@ -51,7 +60,7 @@ let pp_box_type par vl t =
 let pp_one_ind ip pl cv =
   let pl : Id.t list = rename_tvars keywords pl in
   let pp_constructor (r,l) =
-    (str (pp_global Cons r) ++
+    (pp_global Cons r false ++
      match l with
        | [] -> (mt ())
        | _  -> (str "(" ++
@@ -61,7 +70,7 @@ let pp_one_ind ip pl cv =
                )
   in
   str "enum " ++
-  str (pp_global Type (IndRef ip)) ++
+  pp_global Type (IndRef ip) false ++
   (prlist_strict (fun id -> str " " ++ (Nameops.pr_id id)) pl) ++ str " {" ++
     fnl () ++ str " " ++
        v 0 (  prvect_with_sep (fun () -> str "," ++ fnl()) pp_constructor
@@ -76,7 +85,7 @@ let pp_logical_ind packet =
 let pp_singleton kn packet =
   let l = rename_tvars keywords packet.ip_vars in
   let l' = List.rev l in
-  hov 2 (str "type " ++ str (pp_global Type (IndRef (kn,0))) ++ spc () ++
+  hov 2 (str "type " ++ pp_global Type (IndRef (kn,0)) false ++ spc () ++
 	 prlist_with_sep spc pr_id l ++
 	 (if not (List.is_empty l) then str " " else mt ()) ++ str "=" ++ spc () ++
 	 pp_type false l' (List.hd packet.ip_types.(0)) ++ str ";" ++ fnl () ++
@@ -175,13 +184,12 @@ let rec pp_expr par env args =
 	    let _ = failwith "native_char not implemented" in
 	    pp_native_char c
 	  | [] ->
-	    pp_type false [(* TODO: really empty? *)] typ
-	     ++ str "::" ++ str (pp_global Cons r)
+	    pp_global Cons r true
 	  | [a] ->
-	    pp_par par ((pp_type false [] typ) ++ str "::" ++ str (pp_global Cons r)
+	    pp_par par (pp_global Cons r true
 		         ++ pp_par true (pp_box_expr true env [] a))
 	  | _ ->
-	    pp_par par ((pp_type false [] typ) ++ str "::" ++ str (pp_global Cons r) ++
+	    pp_par par (pp_global Cons r true ++
                         pp_par true (prlist_with_sep (fun _ -> str ", ")
                                      (pp_box_expr true env []) a))
 	end
@@ -226,7 +234,7 @@ let rec pp_expr par env args =
     | MLaxiom -> pp_par par (str "Prelude.error \"AXIOM TO BE REALIZED\"")
 and pp_cons_pat par r ppl =
   pp_par par
-    (str (pp_global Cons r) ++
+    (pp_global Cons r true ++
        if List.is_empty ppl then mt() else pp_par true (prlist_with_sep (fun () -> str ",") identity ppl))
 
 and pp_gen_pat ids env = function
@@ -242,11 +250,11 @@ and pp_one_pat env (ids,p,t) =
   pp_expr (expr_needs_par t) env' [] t
 
 and pp_pat env pv =
-  prvecti_with_sep (fun _ -> str ",")
+  prvecti
     (fun i x ->
        let s1,s2 = pp_one_pat env x in
        hv 2 (hov 4 (s1 ++ str " =>") ++ spc () ++ hov 2 s2) ++
-       if Int.equal i (Array.length pv - 1) then mt () else fnl ())
+       if Int.equal i (Array.length pv - 1) then mt () else str "," ++ fnl ())
     pv
 
 and pp_function env f t typ =
@@ -262,7 +270,7 @@ and pp_function env f t typ =
        	  str " = function" ++ fnl () ++
 	  v 0 (pp_pat env' pv)
 	else *)
-          pr_binding (List.rev bl) ++
+          pr_binding (List.rev bl) ++ str " -> " ++ pp_type false [] typ ++
           str " { match " ++ pr_id (fst (List.hd bl)) ++ str " {" ++ fnl () ++
 	  v 0 (pp_pat env' pv)
 	  ++ fnl() ++ str "} }"
@@ -285,12 +293,12 @@ let pp_decl : ml_decl -> Pp.std_ppcmds = function
   | Dterm (r, a, t) ->
     if Table.is_inline_custom r then failwith "inline custom term not implemented"
     else
-      let e = str (pp_global Term r) in
+      let e = pp_global Term r in
 	if is_custom r then
 	  failwith "custom term printing not implemented"
 	  (* hov 0 (e ++ str " = " ++ str (find_custom r) ++ fnl2 ()) *)
 	else
-	  let name = str (pp_global Term r) in
+	  let name = pp_global Term r false in
 	  pp_fn name t ++
 	  hov 0 (str "fn " ++ name ++ pp_function (empty_env ()) e a t ++ fnl2 ())
   | Dfix (_, _, _) -> failwith "Dfix not implemented"
