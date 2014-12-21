@@ -34,4 +34,10 @@ Definition f (d :double) :=
   | d1   => tt
   end.
 
-Recursive Extraction n m o emp single double d e two_arg tv num f.
+Definition g (d :double) :=
+  match d with
+  | d0 _ => d1
+  | d1   => d0 tt
+  end.
+
+Recursive Extraction n m o emp single double d e two_arg tv num f g.

@@ -224,9 +224,14 @@ let rec pp_expr par env args =
       failwith "MLmagic not implemented"
 	(* pp_apply (str "unsafeCoerce") par (pp_expr true env [] a :: args) *)
     | MLaxiom -> pp_par par (str "Prelude.error \"AXIOM TO BE REALIZED\"")
+and pp_cons_pat par r ppl =
+  pp_par par
+    (str (pp_global Cons r) ++
+       if List.is_empty ppl then mt() else pp_par true (prlist_with_sep (fun () -> str ",") identity ppl))
+
 and pp_gen_pat ids env = function
   | Pcons (r, l) -> failwith "pp_gen_pat0" (* pp_cons_pat r (List.map (pp_gen_pat ids env) l) *)
-  | Pusual r -> failwith "pp_gen_pat1" (* pp_cons_pat r (List.map pr_id ids) *)
+  | Pusual r -> pp_cons_pat false r (List.map pr_id ids)
   | Ptuple l -> failwith "pp_gen_pat2" (* pp_boxed_tuple (pp_gen_pat ids env) l*)
   | Pwild -> str "_"
   | Prel n -> pr_id (get_db_name n env)
@@ -237,10 +242,10 @@ and pp_one_pat env (ids,p,t) =
   pp_expr (expr_needs_par t) env' [] t
 
 and pp_pat env pv =
-  prvecti
+  prvecti_with_sep (fun _ -> str ",")
     (fun i x ->
        let s1,s2 = pp_one_pat env x in
-       hv 2 (hov 4 (str "| " ++ s1 ++ str " ->") ++ spc () ++ hov 2 s2) ++
+       hv 2 (hov 4 (s1 ++ str " =>") ++ spc () ++ hov 2 s2) ++
        if Int.equal i (Array.length pv - 1) then mt () else fnl ())
     pv
 
@@ -252,15 +257,15 @@ and pp_function env f t typ =
     | MLcase(Tglob(r,_),MLrel 1,pv) when
 	not (is_coinductive r) && List.is_empty (get_record_fields r) &&
 	not (is_custom_match pv) ->
-	failwith "pp_function MLcase not implemented"
 (*	if not (ast_occurs 1 (MLcase(Tunknown,MLdummy,pv))) then
 	  pr_binding (List.rev (List.tl bl)) ++
        	  str " = function" ++ fnl () ++
 	  v 0 (pp_pat env' pv)
-	else
+	else *)
           pr_binding (List.rev bl) ++
-          str " = match " ++ pr_id (List.hd bl) ++ str " with" ++ fnl () ++
-	  v 0 (pp_pat env' pv)*)
+          str " { match " ++ pr_id (fst (List.hd bl)) ++ str " {" ++ fnl () ++
+	  v 0 (pp_pat env' pv)
+	  ++ fnl() ++ str "} }"
     | _ ->
      (pr_binding (List.rev bl)) ++ str " -> " ++ pp_type false [] typ ++
 	  str " {" ++ fnl () ++ str "  " ++
