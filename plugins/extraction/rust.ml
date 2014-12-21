@@ -143,18 +143,23 @@ let push_vars ids ((db,avoid) : Common.env) =
   let ids',avoid' = rename_vars avoid ids in
   ids', ((List.map fst ids') @ db, avoid')
 
+let pp_apply st par args = match args with
+  | [] -> st
+  | _  -> hov 2 (pp_par par (st ++ spc () ++ pp_par true (prlist_with_sep (fun () -> str ",") identity args)))
+
+let pp_apply2 st par args =
+  let par' = not (List.is_empty args) || par in
+  pp_apply (pp_par par' st) par args
+
 let rec pp_expr par env args =
   let apply st = pp_apply st par args
   and apply2 st = pp_apply2 st par args in
   function
     | MLrel n ->
-      failwith "MLrel not implemented"
-      (* let id = get_db_name n env in apply (pr_id id) *)
+      let id = get_db_name n env in apply (pr_id id)
     | MLapp (f,args') ->
-      failwith "MLapp not implemented"
-    (*
 	let stl = List.map (pp_expr true env []) args' in
-        pp_expr par env (stl @ args) f*)
+        pp_expr par env (stl @ args) f
     | MLlam _ as a ->
       failwith "MLlam not implemented"
 	(*
@@ -175,8 +180,7 @@ let rec pp_expr par env args =
 	(* apply2 (hv 0 (hv 0 (hv 1 pp_def ++ spc () ++ str "in") ++ *)
 	(* 	       spc () ++ hov 0 pp_a2)) *)
     | MLglob r ->
-      failwith "MLglob not implemented"
-	(* apply (pp_global Term r) *)
+	apply (pp_global Term r false)
     | MLcons (typ,r,a) as c ->
         assert (List.is_empty args);
         begin match a with
@@ -213,10 +217,9 @@ let rec pp_expr par env args =
 	(* in *)
 	(* apply2 (hov 2 inner) *)
     | MLcase (typ,t,pv) ->
-      failwith "MLcase not implemented"
-        (* apply2 *)
-	(*   (v 0 (str "case " ++ pp_expr false env [] t ++ str " of {" ++ *)
-	(* 	fnl () ++ pp_pat env pv)) *)
+        apply2
+	  (v 0 (str "match " ++ pp_expr false env [] t ++ str " {" ++
+		fnl () ++ pp_pat env pv ++ fnl() ++ str "}"))
     | MLfix (i,ids,defs) ->
       failwith "MLfix not implemented"
 	(* let ids',env' = push_vars (List.rev (Array.to_list ids)) env in *)
@@ -233,9 +236,11 @@ let rec pp_expr par env args =
 	(* pp_apply (str "unsafeCoerce") par (pp_expr true env [] a :: args) *)
     | MLaxiom -> pp_par par (str "Prelude.error \"AXIOM TO BE REALIZED\"")
 and pp_cons_pat par r ppl =
+  let ppl = List.map (fun pp -> str "box " ++ pp ) ppl in
   pp_par par
     (pp_global Cons r true ++
-       if List.is_empty ppl then mt() else pp_par true (prlist_with_sep (fun () -> str ",") identity ppl))
+       if List.is_empty ppl then mt() else
+	 pp_par true (prlist_with_sep (fun () -> str ",") identity ppl))
 
 and pp_gen_pat ids env = function
   | Pcons (r, l) -> failwith "pp_gen_pat0" (* pp_cons_pat r (List.map (pp_gen_pat ids env) l) *)
@@ -279,7 +284,7 @@ and pp_function env f t typ =
 	  str " {" ++ fnl () ++ str "  " ++
 	  hov 2 (pp_expr false env' [] t') ++ fnl() ++ str "}"
 and pp_box_expr par env args term =
-  pp_par par ((str "box ") ++ pp_expr false env args term)
+  pp_par par ((str "box () ") ++ pp_expr true env args term)
 
 let pp_fn e typ =
   hov 4 (str "// " ++ e ++ str " :" ++ spc () ++ pp_type false [] typ)  ++ fnl2 ()
@@ -301,7 +306,23 @@ let pp_decl : ml_decl -> Pp.std_ppcmds = function
 	  let name = pp_global Term r false in
 	  pp_fn name t ++
 	  hov 0 (str "fn " ++ name ++ pp_function (empty_env ()) e a t ++ fnl2 ())
-  | Dfix (_, _, _) -> failwith "Dfix not implemented"
+  | Dfix (rv, defs, typs) ->
+      let names = Array.map
+	(fun r -> if is_inline_custom r then mt () else pp_global Term r false) rv
+      in
+      prvecti
+	(fun i r ->
+	  let void = is_inline_custom r ||
+	    (not (is_custom r) && match defs.(i) with MLexn "UNUSED" -> true | _ -> false)
+	  in
+	  if void then mt ()
+	  else
+	    (if is_custom r then
+		(names.(i) ++ str " = " ++ str (find_custom r))
+	     else
+		str "fn " ++ names.(i) ++ (pp_function (empty_env ()) names.(i) defs.(i)) (typs.(i)))
+	    ++ fnl2 ())
+	rv
 
 let rec pp_structure_elem = function
   | (l, SEdecl d) -> pp_decl d
