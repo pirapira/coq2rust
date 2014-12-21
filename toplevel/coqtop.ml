@@ -466,8 +466,9 @@ let parse_args arglist =
 
     (* Options with zero arg *)
     |"-async-queries-always-delegate"
-    |"-async-proofs-always-delegate" ->
-        Flags.async_proofs_always_delegate := true;
+    |"-async-proofs-always-delegate"
+    |"-async-proofs-full" ->
+        Flags.async_proofs_full := true;
     |"-async-proofs-never-reopen-branch" ->
         Flags.async_proofs_never_reopen_branch := true;
     |"-batch" -> set_batch_mode ()
@@ -581,12 +582,13 @@ let init arglist =
       check_vi_tasks ();
       outputstate ()
     with any ->
+      let any = Errors.push any in
       flush_all();
       let msg =
         if !batch_mode then mt ()
         else str "Error during initialization:" ++ fnl ()
       in
-      fatal_error (msg ++ Coqloop.print_toplevel_error any) (Errors.is_anomaly any)
+      fatal_error (msg ++ Coqloop.print_toplevel_error any) (Errors.is_anomaly (fst any))
   end;
   if !batch_mode then begin
     flush_all();

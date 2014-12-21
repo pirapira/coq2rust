@@ -13,7 +13,7 @@
 To ensure this file is up-to-date, 'make' now compares the md5 of cic.mli
 with a copy we maintain here:
 
-MD5 b6df941161847354cea0591850f4d528  checker/cic.mli
+MD5 ed14962eac3aa2feba45a572f72b9531 checker/cic.mli
 
 *)
 
@@ -52,6 +52,7 @@ let v_enum name n = Sum(name,n,[||])
 
 (** Ocaml standard library *)
 
+let v_pair v1 v2 = v_tuple "*" [|v1; v2|]
 let v_bool = v_enum "bool" 2
 let v_ref v = v_tuple "ref" [|v|]
 
@@ -97,10 +98,7 @@ let v_raw_level = v_sum "raw_level" 2 (* Prop, Set *)
   [|(*Level*)[|Int;v_dp|]; (*Var*)[|Int|]|]
 let v_level = v_tuple "level" [|Int;v_raw_level|] 
 let v_expr = v_tuple "levelexpr" [|v_level;Int|]
-let v_univ = 
-  let rec vuniv = 
-    Tuple("hconsnode", [|Int;Int; Sum ("univ", 1, [|(*Cons*)[|v_expr;vuniv|]|])|])
-  in vuniv
+let rec v_univ = Sum ("universe", 1, [| [|v_expr; Int; v_univ|] |])
 
 let v_cstrs =
   Annot
@@ -111,6 +109,7 @@ let v_cstrs =
 
 let v_instance = Annot ("instance", Array v_level)
 let v_context = v_tuple "universe_context" [|v_instance;v_cstrs|]
+let v_context_set = v_tuple "universe_context_set" [|v_set v_level;v_cstrs|]
 
 (** kernel/term *)
 
@@ -119,9 +118,11 @@ let v_sortfam = v_enum "sorts_family" 3
 
 let v_puniverses v = v_tuple "punivs" [|v;v_instance|]
 
+let v_boollist = List v_bool  
+
 let v_caseinfo =
   let v_cstyle = v_enum "case_style" 5 in
-  let v_cprint = v_tuple "case_printing" [|Int;v_cstyle|] in
+  let v_cprint = v_tuple "case_printing" [|v_boollist;Array v_boollist;v_cstyle|] in
   v_tuple "case_info" [|v_ind;Int;Array Int;Array Int;v_cprint|]
 
 let v_cast = v_enum "cast_kind" 4
@@ -197,7 +198,7 @@ let v_pol_arity =
   v_tuple "polymorphic_arity" [|List(Opt v_level);v_univ|]
 
 let v_cst_type =
-  v_sum "constant_type" 0 [|[|v_constr|];[|v_rctxt;v_pol_arity|]|]
+  v_sum "constant_type" 0 [|[|v_constr|]; [|v_pair v_rctxt v_pol_arity|]|]
 
 let v_cst_def =
   v_sum "constant_def" 0
@@ -251,7 +252,7 @@ let v_one_ind = v_tuple "one_inductive_body"
 
 let v_finite = v_enum "recursivity_kind" 3
 let v_mind_record = Annot ("mind_record", 
-			   Opt (v_tuple "record" [| Array v_cst; Array v_projbody |]))
+			   Opt (Opt (v_tuple "record" [| v_id; Array v_cst; Array v_projbody |])))
 
 let v_ind_pack = v_tuple "mutual_inductive_body"
   [|Array v_one_ind;
@@ -326,7 +327,7 @@ let v_lib =
 
 let v_opaques = Array (v_computation v_constr)
 let v_univopaques =
-  Opt (Tuple ("univopaques",[|Array (v_computation v_cstrs);v_cstrs;v_bool|]))
+  Opt (Tuple ("univopaques",[|Array (v_computation v_context_set);v_context_set;v_bool|]))
 
 (** Registering dynamic values *)
 

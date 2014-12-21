@@ -322,7 +322,7 @@ let about () = {
   Interface.compile_date = Coq_config.compile_date;
 }
 
-let handle_exn e =
+let handle_exn (e, info) =
   let dummy = Stateid.dummy in
   let loc_of e = match Loc.get_loc e with
     | Some loc when not (Loc.is_ghost loc) -> Some (Loc.unloc loc)
@@ -332,9 +332,9 @@ let handle_exn e =
   | Errors.Drop -> dummy, None, "Drop is not allowed by coqide!"
   | Errors.Quit -> dummy, None, "Quit is not allowed by coqide!"
   | e ->
-      match Stateid.get e with
-      | Some (valid, _) -> valid, loc_of e, mk_msg e
-      | None -> dummy, loc_of e, mk_msg e
+      match Stateid.get info with
+      | Some (valid, _) -> valid, loc_of info, mk_msg e
+      | None -> dummy, loc_of info, mk_msg e
 
 let init =
   let initialized = ref false in
@@ -421,7 +421,7 @@ let print_xml =
   fun oc xml ->
     Mutex.lock m;
     try Xml_printer.print oc xml; Mutex.unlock m
-    with e -> let e = Errors.push e in Mutex.unlock m; raise e
+    with e -> let e = Errors.push e in Mutex.unlock m; iraise e
 
 
 let slave_logger xml_oc level message =
@@ -450,7 +450,6 @@ let loop () =
   catch_break := false;
   let in_ch, out_ch = Spawned.get_channels () in
   let xml_oc = Xml_printer.make (Xml_printer.TChannel out_ch) in
-  CThread.prepare_in_channel_for_thread_friendly_io in_ch;
   let in_lb = Lexing.from_function (fun s len ->
     CThread.thread_friendly_read in_ch s ~off:0 ~len) in
   let xml_ic = Xml_parser.make (Xml_parser.SLexbuf in_lb) in

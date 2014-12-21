@@ -76,8 +76,6 @@ open Pp_control
    an option without creating a circularity: [Flags] -> [Util] ->
    [Pp] -> [Flags] *)
 let print_emacs = ref false
-let make_pp_emacs() = print_emacs:=true
-let make_pp_nonemacs() = print_emacs:=false
 
 (* The different kinds of blocks are:
    \begin{description}
@@ -360,7 +358,7 @@ let pp_dirs ?pp_tag ft =
     with reraise ->
       let reraise = Backtrace.add_backtrace reraise in
       let () = Format.pp_print_flush ft () in
-      raise reraise
+      Exninfo.iraise reraise
 
 
 
@@ -370,8 +368,15 @@ let pp_dirs ?pp_tag ft =
 let emacs_quote_start = String.make 1 (Char.chr 254)
 let emacs_quote_end = String.make 1 (Char.chr 255)
 
+let emacs_quote_info_start = "<infomsg>"
+let emacs_quote_info_end = "</infomsg>"
+
 let emacs_quote g =
   if !print_emacs then str emacs_quote_start ++ hov 0 g ++ str emacs_quote_end
+  else hov 0 g
+
+let emacs_quote_info g =
+  if !print_emacs then str emacs_quote_info_start++fnl() ++ hov 0 g ++ str emacs_quote_info_end
   else hov 0 g
 
 
@@ -434,6 +439,7 @@ let make_body info s =
 let debugbody strm = hov 0 (str "Debug:" ++ spc () ++ strm)
 let warnbody strm = make_body (str "Warning:") strm
 let errorbody strm = make_body (str "Error:") strm
+let infobody strm = emacs_quote_info strm
 
 let std_logger ~id:_ level msg = match level with
 | Debug _ -> msgnl (debugbody msg)
@@ -442,10 +448,25 @@ let std_logger ~id:_ level msg = match level with
 | Warning -> Flags.if_warn (fun () -> msgnl_with !err_ft (warnbody msg)) ()
 | Error -> msgnl_with !err_ft (errorbody msg)
 
+let emacs_logger ~id:_ level mesg = match level with
+| Debug _ -> msgnl (debugbody mesg)
+| Info -> msgnl (infobody mesg)
+| Notice -> msgnl mesg
+| Warning -> Flags.if_warn (fun () -> msgnl_with !err_ft (warnbody mesg)) ()
+| Error -> msgnl_with !err_ft (errorbody mesg)
+
 let logger = ref std_logger
+
+let make_pp_emacs() = print_emacs:=true; logger:=emacs_logger
+let make_pp_nonemacs() = print_emacs:=false; logger := std_logger
+
 
 let feedback_id = ref (Feedback.Edit 0)
 let feedback_route = ref Feedback.default_route
+
+(* If mixing some output and a goal display, please use msg_warning,
+   so that interfaces (proofgeneral for example) can easily dispatch
+   them to different windows. *)
 
 let msg_info x = !logger ~id:!feedback_id Info x
 let msg_notice x = !logger ~id:!feedback_id Notice x

@@ -970,11 +970,13 @@ let rec unify_0_with_initial_metas (sigma,ms,es as subst) conv_at_top env cv_pb 
       let (evd,ks,_) =
 	List.fold_left
 	  (fun (evd,ks,m) b ->
-	    if Int.equal m n then (evd,t2::ks, m-1) else
+	    if match n with Some n -> Int.equal m n | None -> false then
+                (evd,t2::ks, m-1)
+            else
               let mv = new_meta () in
 	      let evd' = meta_declare mv (substl ks b) evd in
 	      (evd', mkMeta mv :: ks, m - 1))
-	  (sigma,[],List.length bs - 1) bs
+	  (sigma,[],List.length bs) bs
       in
       try
       let opt' = {opt with with_types = false} in
@@ -1365,9 +1367,9 @@ let try_resolve_typeclasses env evd flag m n =
 
 let w_unify_core_0 env evd with_types cv_pb flags m n =
   let (mc1,evd') = retract_coercible_metas evd in
-  let (sigma,ms,es) = check_types env (set_flags_for_type flags.core_unify_flags) (evd,mc1,[]) m n in
+  let (sigma,ms,es) = check_types env (set_flags_for_type flags.core_unify_flags) (evd',mc1,[]) m n in
   let subst2 =
-     unify_0_with_initial_metas (evd',ms,es) false env cv_pb
+     unify_0_with_initial_metas (sigma,ms,es) false env cv_pb
        flags.core_unify_flags m n
   in
   let evd = w_merge env with_types flags.merge_unify_flags subst2 in

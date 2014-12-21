@@ -77,7 +77,9 @@ let search_guard loc env possible_indexes fixdefs =
     let fix = ((indexes, 0),fixdefs) in
     (try check_fix env fix
      with reraise ->
-       let e = Errors.push reraise in Loc.raise loc e);
+       let (e, info) = Errors.push reraise in
+       let info = Loc.add_loc info loc in
+       iraise (e, info));
     indexes
   else
     (* we now search recursively amoungst all combinations *)
@@ -176,7 +178,7 @@ let apply_heuristics env evdref fail_evar =
   try evdref := consider_remaining_unif_problems
 	~ts:(Typeclasses.classes_transparent_state ()) env !evdref
   with e when Errors.noncritical e ->
-    let e = Errors.push e in if fail_evar then raise e
+    let e = Errors.push e in if fail_evar then iraise e
 
 let check_typeclasses_instances_are_solved env current_sigma pending =
   (* Naive way, call resolution again with failure flag *)
@@ -302,10 +304,11 @@ let pretype_id pretype loc env evdref lvar id =
 	{ uj_val = c; uj_type = protected_get_type_of env sigma c }
     with Not_found -> try
        let {closure;term} = Id.Map.find id lvar.ltac_uconstrs in
-       let lvar = { lvar with
+       let lvar = {
          ltac_constrs = closure.typed;
          ltac_uconstrs = closure.untyped;
-         ltac_idents = closure.idents }
+         ltac_idents = closure.idents;
+         ltac_genargs = Id.Map.empty; }
        in
        (* spiwack: I'm catching [Not_found] potentially too eagerly
           here, as the call to the main pretyping function is caught
@@ -542,7 +545,9 @@ let rec pretype resolve_tc (tycon : type_constraint) env evdref (lvar : ltac_var
 	  let cofix = (i,(names,ftys,fdefs)) in
 	    (try check_cofix env cofix
              with reraise ->
-               let e = Errors.push reraise in Loc.raise loc e);
+               let (e, info) = Errors.push reraise in
+               let info = Loc.add_loc info loc in
+               iraise (e, info));
 	    make_judge (mkCoFix cofix) ftys.(i)
       in
 	inh_conv_coerce_to_tycon loc env evdref fixj tycon
@@ -672,7 +677,10 @@ let rec pretype resolve_tc (tycon : type_constraint) env evdref (lvar : ltac_var
     let resj =
       try
         judge_of_product env name j j'
-      with TypeError _ as e -> let e = Errors.push e in Loc.raise loc e in
+      with TypeError _ as e ->
+        let (e, info) = Errors.push e in
+        let info = Loc.add_loc info loc in
+        iraise (e, info) in
       inh_conv_coerce_to_tycon loc env evdref resj tycon
 
   | GLetIn(loc,name,c1,c2)      ->

@@ -87,6 +87,18 @@ Section Facts.
     left; exists a, tail; reflexivity.
   Qed.
 
+  Lemma hd_error_tl_repr : forall l (a:A) r,
+    hd_error l = Some a /\ tl l = r <-> l = a :: r.
+  Proof. destruct l as [|x xs].
+    - unfold hd_error, tl; intros a r. split; firstorder discriminate.
+    - intros. simpl. split.
+      * intros (H1, H2). inversion H1. rewrite H2. reflexivity.
+      * inversion 1. subst. auto.
+  Qed.
+
+  Lemma hd_error_some_nil : forall l (a:A), hd_error l = Some a -> l <> nil.
+  Proof. unfold hd_error. destruct l; now discriminate. Qed.
+
   Theorem length_zero_iff_nil (l : list A):
     length l = 0 <-> l=[].
   Proof.
@@ -1777,7 +1789,41 @@ Section ReDun.
     + now constructor.
   Qed.
 
+  (** Effective computation of a list without duplicates *)
+
   Hypothesis decA: forall x y : A, {x = y} + {x <> y}.
+
+  Fixpoint nodup (l : list A) : list A :=
+    match l with
+      | [] => []
+      | x::xs => if in_dec decA x xs then nodup xs else x::(nodup xs)
+    end.
+
+  Lemma nodup_In l x : In x (nodup l) <-> In x l.
+  Proof.
+    induction l as [|a l' Hrec]; simpl.
+    - reflexivity.
+    - destruct (in_dec decA a l'); simpl; rewrite Hrec.
+      * intuition; now subst.
+      * reflexivity.
+  Qed.
+
+  Lemma NoDup_nodup l: NoDup (nodup l).
+  Proof.
+    induction l as [|a l' Hrec]; simpl.
+    - constructor.
+    - destruct (in_dec decA a l'); simpl.
+      * assumption.
+      * constructor; [ now rewrite nodup_In | assumption].
+  Qed.
+
+  Lemma nodup_inv k l a : nodup k = a :: l -> ~ In a l.
+  Proof.
+    intros H.
+    assert (H' : NoDup (a::l)).
+    { rewrite <- H. apply NoDup_nodup. }
+    now inversion_clear H'.
+  Qed.
 
   Theorem NoDup_count_occ l:
     NoDup l <-> (forall x:A, count_occ decA l x <= 1).
@@ -1948,147 +1994,233 @@ Section NatSeq.
 
 End NatSeq.
 
+Section Exists_Forall.
 
-(** * Existential and universal predicates over lists *)
+  (** * Existential and universal predicates over lists *)
 
-Inductive Exists {A} (P:A->Prop) : list A -> Prop :=
- | Exists_cons_hd : forall x l, P x -> Exists P (x::l)
- | Exists_cons_tl : forall x l, Exists P l -> Exists P (x::l).
+  Variable A:Type.
+
+  Section One_predicate.
+
+    Variable P:A->Prop.
+
+    Inductive Exists : list A -> Prop :=
+      | Exists_cons_hd : forall x l, P x -> Exists (x::l)
+      | Exists_cons_tl : forall x l, Exists l -> Exists (x::l).
+
+    Hint Constructors Exists.
+
+    Lemma Exists_exists (l:list A) :
+      Exists l <-> (exists x, In x l /\ P x).
+    Proof.
+      split.
+      - induction 1; firstorder.
+      - induction l; firstorder; subst; auto.
+    Qed.
+
+    Lemma Exists_nil : Exists nil <-> False.
+    Proof. split; inversion 1. Qed.
+
+    Lemma Exists_cons x l:
+      Exists (x::l) <-> P x \/ Exists l.
+    Proof. split; inversion 1; auto. Qed.
+
+    Lemma Exists_dec l:
+      (forall x:A, {P x} + { ~ P x }) ->
+      {Exists l} + {~ Exists l}.
+    Proof.
+      intro Pdec. induction l as [|a l' Hrec].
+      - right. now rewrite Exists_nil.
+      - destruct Hrec as [Hl'|Hl'].
+        * left. now apply Exists_cons_tl.
+        * destruct (Pdec a) as [Ha|Ha].
+          + left. now apply Exists_cons_hd.
+          + right. now inversion_clear 1.
+    Qed.
+
+    Inductive Forall : list A -> Prop :=
+      | Forall_nil : Forall nil
+      | Forall_cons : forall x l, P x -> Forall l -> Forall (x::l).
+
+    Hint Constructors Forall.
+
+    Lemma Forall_forall (l:list A):
+      Forall l <-> (forall x, In x l -> P x).
+    Proof.
+      split.
+      - induction 1; firstorder; subst; auto.
+      - induction l; firstorder.
+    Qed.
+
+    Lemma Forall_inv : forall (a:A) l, Forall (a :: l) -> P a.
+    Proof.
+      intros; inversion H; trivial.
+    Qed.
+
+    Lemma Forall_rect : forall (Q : list A -> Type),
+      Q [] -> (forall b l, P b -> Q (b :: l)) -> forall l, Forall l -> Q l.
+    Proof.
+      intros Q H H'; induction l; intro; [|eapply H', Forall_inv]; eassumption.
+    Qed.
+
+    Lemma Forall_dec :
+      (forall x:A, {P x} + { ~ P x }) ->
+      forall l:list A, {Forall l} + {~ Forall l}.
+    Proof.
+      intro Pdec. induction l as [|a l' Hrec].
+      - left. apply Forall_nil.
+      - destruct Hrec as [Hl'|Hl'].
+        + destruct (Pdec a) as [Ha|Ha].
+          * left. now apply Forall_cons.
+          * right. now inversion_clear 1.
+        + right. now inversion_clear 1.
+    Qed.
+
+  End One_predicate.
+
+  Lemma Forall_Exists_neg (P:A->Prop)(l:list A) :
+   Forall (fun x => ~ P x) l <-> ~(Exists P l).
+  Proof.
+   rewrite Forall_forall, Exists_exists. firstorder.
+  Qed.
+
+  Lemma Exists_Forall_neg (P:A->Prop)(l:list A) :
+    (forall x, P x \/ ~P x) ->
+    Exists (fun x => ~ P x) l <-> ~(Forall P l).
+  Proof.
+   intro Dec.
+   split.
+   - rewrite Forall_forall, Exists_exists; firstorder.
+   - intros NF.
+     induction l as [|a l IH].
+     + destruct NF. constructor.
+     + destruct (Dec a) as [Ha|Ha].
+       * apply Exists_cons_tl, IH. contradict NF. now constructor.
+       * now apply Exists_cons_hd.
+  Qed.
+
+  Lemma Forall_Exists_dec (P:A->Prop) :
+    (forall x:A, {P x} + { ~ P x }) ->
+    forall l:list A,
+    {Forall P l} + {Exists (fun x => ~ P x) l}.
+  Proof.
+    intros Pdec l.
+    destruct (Forall_dec P Pdec l); [left|right]; trivial.
+    apply Exists_Forall_neg; trivial.
+    intro x. destruct (Pdec x); [now left|now right].
+  Qed.
+
+  Lemma Forall_impl : forall (P Q : A -> Prop), (forall a, P a -> Q a) ->
+    forall l, Forall P l -> Forall Q l.
+  Proof.
+    intros P Q H l. rewrite !Forall_forall. firstorder.
+  Qed.
+
+End Exists_Forall.
+
 Hint Constructors Exists.
-
-Lemma Exists_exists : forall A P (l:list A),
- Exists P l <-> (exists x, In x l /\ P x).
-Proof.
-split.
-induction 1; firstorder.
-induction l; firstorder; subst; auto.
-Qed.
-
-Lemma Exists_nil : forall A (P:A->Prop), Exists P nil <-> False.
-Proof. split; inversion 1. Qed.
-
-Lemma Exists_cons : forall A (P:A->Prop) x l,
- Exists P (x::l) <-> P x \/ Exists P l.
-Proof. split; inversion 1; auto. Qed.
-
-
-Inductive Forall {A} (P:A->Prop) : list A -> Prop :=
- | Forall_nil : Forall P nil
- | Forall_cons : forall x l, P x -> Forall P l -> Forall P (x::l).
 Hint Constructors Forall.
 
-Lemma Forall_forall : forall A P (l:list A),
- Forall P l <-> (forall x, In x l -> P x).
-Proof.
-split.
-induction 1; firstorder; subst; auto.
-induction l; firstorder.
-Qed.
+Section Forall2.
 
-Lemma Forall_inv : forall A P (a:A) l, Forall P (a :: l) -> P a.
-Proof.
-intros; inversion H; trivial.
-Defined.
+  (** [Forall2]: stating that elements of two lists are pairwise related. *)
 
-Lemma Forall_rect : forall A (P:A->Prop) (Q : list A -> Type),
-     Q [] -> (forall b l, P b -> Q (b :: l)) -> forall l, Forall P l -> Q l.
-Proof.
-intros A P Q H H'; induction l; intro; [|eapply H', Forall_inv]; eassumption.
-Defined.
+  Variables A B : Type.
+  Variable R : A -> B -> Prop.
 
-Lemma Forall_impl : forall A (P Q : A -> Prop), (forall a, P a -> Q a) ->
-  forall l, Forall P l -> Forall Q l.
-Proof.
-  intros A P Q Himp l H.
-  induction H; firstorder.
-Qed.
+  Inductive Forall2 : list A -> list B -> Prop :=
+    | Forall2_nil : Forall2 [] []
+    | Forall2_cons : forall x y l l',
+      R x y -> Forall2 l l' -> Forall2 (x::l) (y::l').
 
-(** [Forall2]: stating that elements of two lists are pairwise related. *)
+  Hint Constructors Forall2.
 
-Inductive Forall2 A B (R:A->B->Prop) : list A -> list B -> Prop :=
- | Forall2_nil : Forall2 R [] []
- | Forall2_cons : forall x y l l',
-    R x y -> Forall2 R l l' -> Forall2 R (x::l) (y::l').
+  Theorem Forall2_refl : Forall2 [] [].
+  Proof. intros; apply Forall2_nil. Qed.
+
+  Theorem Forall2_app_inv_l : forall l1 l2 l',
+    Forall2 (l1 ++ l2) l' ->
+    exists l1' l2', Forall2 l1 l1' /\ Forall2 l2 l2' /\ l' = l1' ++ l2'.
+  Proof.
+    induction l1; intros.
+      exists [], l'; auto.
+      simpl in H; inversion H; subst; clear H.
+      apply IHl1 in H4 as (l1' & l2' & Hl1 & Hl2 & ->).
+      exists (y::l1'), l2'; simpl; auto.
+  Qed.
+
+  Theorem Forall2_app_inv_r : forall l1' l2' l,
+    Forall2 l (l1' ++ l2') ->
+    exists l1 l2, Forall2 l1 l1' /\ Forall2 l2 l2' /\ l = l1 ++ l2.
+  Proof.
+    induction l1'; intros.
+      exists [], l; auto.
+      simpl in H; inversion H; subst; clear H.
+      apply IHl1' in H4 as (l1 & l2 & Hl1 & Hl2 & ->).
+      exists (x::l1), l2; simpl; auto.
+  Qed.
+
+  Theorem Forall2_app : forall l1 l2 l1' l2',
+    Forall2 l1 l1' -> Forall2 l2 l2' -> Forall2 (l1 ++ l2) (l1' ++ l2').
+  Proof.
+    intros. induction l1 in l1', H, H0 |- *; inversion H; subst; simpl; auto.
+  Qed.
+End Forall2.
+
 Hint Constructors Forall2.
 
-Theorem Forall2_refl : forall A B (R:A->B->Prop), Forall2 R [] [].
-Proof. intros; apply Forall2_nil. Qed.
+Section ForallPairs.
 
-Theorem Forall2_app_inv_l : forall A B (R:A->B->Prop) l1 l2 l',
-  Forall2 R (l1 ++ l2) l' ->
-  exists l1' l2', Forall2 R l1 l1' /\ Forall2 R l2 l2' /\ l' = l1' ++ l2'.
-Proof.
-  induction l1; intros.
-    exists [], l'; auto.
-    simpl in H; inversion H; subst; clear H.
-    apply IHl1 in H4 as (l1' & l2' & Hl1 & Hl2 & ->).
-    exists (y::l1'), l2'; simpl; auto.
-Qed.
-
-Theorem Forall2_app_inv_r : forall A B (R:A->B->Prop) l1' l2' l,
-  Forall2 R l (l1' ++ l2') ->
-  exists l1 l2, Forall2 R l1 l1' /\ Forall2 R l2 l2' /\ l = l1 ++ l2.
-Proof.
-  induction l1'; intros.
-    exists [], l; auto.
-    simpl in H; inversion H; subst; clear H.
-    apply IHl1' in H4 as (l1 & l2 & Hl1 & Hl2 & ->).
-    exists (x::l1), l2; simpl; auto.
-Qed.
-
-Theorem Forall2_app : forall A B (R:A->B->Prop) l1 l2 l1' l2',
-  Forall2 R l1 l1' -> Forall2 R l2 l2' -> Forall2 R (l1 ++ l2) (l1' ++ l2').
-Proof.
-  intros. induction l1 in l1', H, H0 |- *; inversion H; subst; simpl; auto.
-Qed.
-
-(** [ForallPairs] : specifies that a certain relation should
+  (** [ForallPairs] : specifies that a certain relation should
     always hold when inspecting all possible pairs of elements of a list. *)
 
-Definition ForallPairs A (R : A -> A -> Prop) l :=
- forall a b, In a l -> In b l -> R a b.
+  Variable A : Type.
+  Variable R : A -> A -> Prop.
 
-(** [ForallOrdPairs] : we still check a relation over all pairs
+  Definition ForallPairs l :=
+    forall a b, In a l -> In b l -> R a b.
+
+  (** [ForallOrdPairs] : we still check a relation over all pairs
      of elements of a list, but now the order of elements matters. *)
 
-Inductive ForallOrdPairs A (R : A -> A -> Prop) : list A -> Prop :=
-  | FOP_nil : ForallOrdPairs R nil
-  | FOP_cons : forall a l,
-     Forall (R a) l -> ForallOrdPairs R l -> ForallOrdPairs R (a::l).
-Hint Constructors ForallOrdPairs.
+  Inductive ForallOrdPairs : list A -> Prop :=
+    | FOP_nil : ForallOrdPairs nil
+    | FOP_cons : forall a l,
+      Forall (R a) l -> ForallOrdPairs l -> ForallOrdPairs (a::l).
 
-Lemma ForallOrdPairs_In : forall A (R:A->A->Prop) l,
- ForallOrdPairs R l ->
- forall x y, In x l -> In y l -> x=y \/ R x y \/ R y x.
-Proof.
- induction 1.
- inversion 1.
- simpl; destruct 1; destruct 1; repeat subst; auto.
- right; left. apply -> Forall_forall; eauto.
- right; right. apply -> Forall_forall; eauto.
-Qed.
+  Hint Constructors ForallOrdPairs.
 
+  Lemma ForallOrdPairs_In : forall l,
+    ForallOrdPairs l ->
+    forall x y, In x l -> In y l -> x=y \/ R x y \/ R y x.
+  Proof.
+    induction 1.
+    inversion 1.
+    simpl; destruct 1; destruct 1; repeat subst; auto.
+    right; left. apply -> Forall_forall; eauto.
+    right; right. apply -> Forall_forall; eauto.
+  Qed.
 
-(** [ForallPairs] implies [ForallOrdPairs]. The reverse implication is true
+  (** [ForallPairs] implies [ForallOrdPairs]. The reverse implication is true
     only when [R] is symmetric and reflexive. *)
 
-Lemma ForallPairs_ForallOrdPairs : forall A (R:A->A->Prop) l,
- ForallPairs R l -> ForallOrdPairs R l.
-Proof.
- induction l; auto. intros H.
- constructor.
- apply <- Forall_forall. intros; apply H; simpl; auto.
- apply IHl. red; intros; apply H; simpl; auto.
-Qed.
+  Lemma ForallPairs_ForallOrdPairs l: ForallPairs l -> ForallOrdPairs l.
+  Proof.
+    induction l; auto. intros H.
+    constructor.
+    apply <- Forall_forall. intros; apply H; simpl; auto.
+    apply IHl. red; intros; apply H; simpl; auto.
+  Qed.
 
-Lemma ForallOrdPairs_ForallPairs : forall A (R:A->A->Prop),
- (forall x, R x x) ->
- (forall x y, R x y -> R y x) ->
- forall l, ForallOrdPairs R l -> ForallPairs R l.
-Proof.
- intros A R Refl Sym l Hl x y Hx Hy.
- destruct (ForallOrdPairs_In Hl _ _ Hx Hy); subst; intuition.
-Qed.
+  Lemma ForallOrdPairs_ForallPairs :
+    (forall x, R x x) ->
+    (forall x y, R x y -> R y x) ->
+    forall l, ForallOrdPairs l -> ForallPairs l.
+  Proof.
+    intros Refl Sym l Hl x y Hx Hy.
+    destruct (ForallOrdPairs_In Hl _ _ Hx Hy); subst; intuition.
+  Qed.
+End ForallPairs.
 
 (** * Inversion of predicates over lists based on head symbol *)
 

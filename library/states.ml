@@ -6,9 +6,12 @@
 (*         *       GNU Lesser General Public License Version 2.1        *)
 (************************************************************************)
 
+open Util
 open System
 
 type state = Lib.frozen * Summary.frozen
+
+let summary_of_state = snd
 
 let freeze ~marshallable =
   (Lib.freeze ~marshallable, Summary.freeze_summaries ~marshallable)
@@ -38,6 +41,6 @@ let with_state_protection f x =
     let a = f x in unfreeze st; a
   with reraise ->
     let reraise = Errors.push reraise in
-    (unfreeze st; raise reraise)
+    (unfreeze st; iraise reraise)
 
 let with_state_protection_on_exception = Future.transactify

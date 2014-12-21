@@ -141,7 +141,7 @@ let extend_atomic_tactic name entries =
   | None -> ()
   | Some args ->
     let body = Tacexpr.TacML (Loc.ghost, name, args) in
-    Tacenv.register_ltac false (Names.Id.of_string id) body
+    Tacenv.register_ltac false false (Names.Id.of_string id) body
   in
   List.iter add_atomic entries
 
@@ -310,8 +310,9 @@ let parse_format ((loc, str) : lstring) =
     else
       error "Empty format."
   with reraise ->
-    let e = Errors.push reraise in
-    Loc.raise loc e
+    let (e, info) = Errors.push reraise in
+    let info = Loc.add_loc info loc in
+    iraise (e, info)
 
 (***********************)
 (* Analyzing notations *)
@@ -878,6 +879,12 @@ let check_infix_modifiers modifiers =
   if not (List.is_empty t) then
     error "Explicit entry level or type unexpected in infix notation."
 
+let check_useless_entry_types recvars mainvars etyps =
+  let vars = let (l1,l2) = List.split recvars in l1@l2@mainvars in
+  match List.filter (fun (x,etyp) -> not (List.mem x vars)) etyps with
+  | (x,_)::_ -> error (Id.to_string x ^ " is unbound in the notation.")
+  | _ -> ()
+
 let no_syntax_modifiers = function
   | [] | [SetOnlyParsing _] -> true
   | _ -> false
@@ -1043,6 +1050,7 @@ let compute_syntax_data df modifiers =
   let assoc = match assoc with None -> (* default *) Some NonA | a -> a in
   let toks = split_notation_string df in
   let (recvars,mainvars,symbols) = analyze_notation_tokens toks in
+  let _ = check_useless_entry_types recvars mainvars etyps in
   let ntn_for_interp = make_notation_key symbols in
   let symbols' = remove_curly_brackets symbols in
   let need_squash = not (List.equal Notation.symbol_eq symbols symbols') in
@@ -1129,7 +1137,7 @@ let with_lib_stk_protection f x =
   with reraise ->
     let reraise = Errors.push reraise in
     let () = Lib.unfreeze fs in
-    raise reraise
+    iraise reraise
 
 let with_syntax_protection f x =
   with_lib_stk_protection

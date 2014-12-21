@@ -74,7 +74,7 @@ type printable =
   | PrintScopes
   | PrintScope of string
   | PrintVisibility of string option
-  | PrintAbout of reference or_by_notation
+  | PrintAbout of reference or_by_notation*int option
   | PrintImplicit of reference or_by_notation
   | PrintAssumptions of bool * bool * reference or_by_notation
   | PrintStrategy of reference or_by_notation option
@@ -323,6 +323,7 @@ type vernac_expr =
       class_rawexpr * class_rawexpr
   | VernacIdentityCoercion of obsolete_locality * lident *
       class_rawexpr * class_rawexpr
+  | VernacNameSectionHypSet of lident * section_subset_descr 
 
   (* Type classes *)
   | VernacInstance of

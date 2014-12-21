@@ -89,15 +89,17 @@ val iterate : ('a -> 'a) -> int -> 'a -> 'a
 val repeat : int -> ('a -> unit) -> 'a -> unit
 val app_opt : ('a -> 'a) option -> 'a -> 'a
 
-(** [un_opt opt default] returns the content of [opt] if possible and
-    default otherwise. *)
-val un_opt : 'a option -> 'a -> 'a
-
 (** {6 Delayed computations. } *)
 
 type 'a delayed = unit -> 'a
 
 val delayed_force : 'a delayed -> 'a
+
+(** {6 Enriched exceptions} *)
+
+type iexn = Exninfo.iexn
+
+val iraise : iexn -> 'a
 
 (** {6 Misc. } *)
 
@@ -108,4 +110,3 @@ val map_union : ('a -> 'c) -> ('b -> 'd) -> ('a, 'b) union -> ('c, 'd) union
 
 type 'a until = 'a CSig.until = Stop of 'a | Cont of 'a
 (** Used for browsable-until structures. *)
-

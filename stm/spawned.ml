@@ -31,6 +31,7 @@ let open_bin_connection h p =
   let cin, cout = open_connection (ADDR_INET (inet_addr_of_string h,p)) in
   set_binary_mode_in cin true;
   set_binary_mode_out cout true;
+  let cin = CThread.prepare_in_channel_for_thread_friendly_io cin in
   cin, cout
 
 let controller h p =
@@ -39,11 +40,11 @@ let controller h p =
     let ic, oc = open_bin_connection h p in
     let rec loop () =
       try
-        match input_value ic with
+        match CThread.thread_friendly_input_value ic with
         | Hello _ -> prerr_endline "internal protocol error"; exit 1
         | ReqDie -> prerr_endline "death sentence received"; exit 0
         | ReqStats ->
-            output_value oc (RespStats (Gc.stat ())); flush oc; loop ()
+            output_value oc (RespStats (Gc.quick_stat ())); flush oc; loop ()
       with
       | e ->
         prerr_endline ("control channel broken: " ^ Printexc.to_string e);
@@ -68,6 +69,7 @@ let init_channels () =
     Unix.dup2 Unix.stderr Unix.stdout;
     set_binary_mode_in stdin true;
     set_binary_mode_out stdout true;
+    let stdin = CThread.prepare_in_channel_for_thread_friendly_io stdin in
     channels := Some (stdin, stdout);
   in
   match !control_channel with

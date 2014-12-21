@@ -105,8 +105,8 @@ let unfreeze_summaries fs =
     with e when Errors.noncritical e ->
       let e = Errors.push e in
       Printf.eprintf "Error unfrezing summay %s\n%s\n%!"
-        (name_of_summary id) (Pp.string_of_ppcmds (Errors.print e));
-      raise e
+        (name_of_summary id) (Pp.string_of_ppcmds (Errors.iprint e));
+      iraise e
   in
   (** We rely on the order of the frozen list, and the order of folding *)
   ignore (Int.Map.fold_left fold !summaries fs.summaries)
@@ -123,21 +123,22 @@ let nop () = ()
 
 type frozen_bits = (int * Dyn.t) list
 
+let ids_of_string_list complement ids =
+  if not complement then List.map String.hash ids
+  else
+    let fold accu id =
+      let id = String.hash id in
+      Int.Set.remove id accu
+    in
+    let ids = List.fold_left fold !all_declared_summaries ids in
+    Int.Set.elements ids
+
 let freeze_summary ~marshallable ?(complement=false) ids =
-  let ids =
-    if not complement then List.map String.hash ids
-    else
-      let fold accu id =
-        let id = String.hash id in
-        Int.Set.remove id accu
-      in
-      let ids = List.fold_left fold !all_declared_summaries ids in
-      Int.Set.elements ids
-  in
-    List.map (fun id ->
-      let (_, summary) = Int.Map.find id !summaries in
-      id, summary.freeze_function marshallable)
-    ids
+  let ids = ids_of_string_list complement ids in
+  List.map (fun id ->
+    let (_, summary) = Int.Map.find id !summaries in
+    id, summary.freeze_function marshallable)
+  ids
 
 let unfreeze_summary datas =
   List.iter
@@ -147,8 +148,23 @@ let unfreeze_summary datas =
       with e ->
         let e = Errors.push e in
         prerr_endline ("Exception unfreezing " ^ name);
-        raise e)
+        iraise e)
   datas
+
+let surgery_summary { summaries; ml_module } bits =
+  let summaries = List.map (fun (id, _ as orig) ->
+      try id, List.assoc id bits
+      with Not_found -> orig)
+    summaries in
+  { summaries; ml_module }
+
+let project_summary { summaries; ml_module } ?(complement=false) ids =
+  let ids = ids_of_string_list complement ids in
+  List.filter (fun (id, _) -> List.mem id ids) summaries
+
+let pointer_equal l1 l2 =
+  CList.for_all2eq
+    (fun (id1,v1) (id2,v2) -> id1 = id2 && Dyn.pointer_equal v1 v2) l1 l2
 
 (** All-in-one reference declaration + registration *)
 

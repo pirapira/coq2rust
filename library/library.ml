@@ -724,14 +724,14 @@ let save_library_to ?todo dir f otab =
     (* Writing native code files *)
     if not !Flags.no_native_compiler then
       let fn = Filename.dirname f'^"/"^Nativecode.mod_uid_of_dirpath dir in
-      if not (Int.equal (Nativelib.compile_library dir ast fn) 0) then
+      if not (Nativelib.compile_library dir ast fn) then
         msg_error (str"Could not compile the library to native code. Skipping.")
    with reraise ->
     let reraise = Errors.push reraise in
     let () = msg_warning (str ("Removed file "^f')) in
     let () = close_out ch in
     let () = Sys.remove f' in
-    raise reraise
+    iraise reraise
 
 let save_library_raw f lib univs proofs =
   let (f',ch) = raw_extern_library (f^"o") in

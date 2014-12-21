@@ -52,11 +52,11 @@ Vernacular commands
 - Command "Search" has been renamed into "SearchHead". The command
   name "Search" now behaves like former "SearchAbout". The latter name
   is deprecated.
-- "Search" "SearchHead" "SearchRewrite" and "SearchPattern" now search
-  for hypothesis (of the current goal) first. They now also support the
-  goal selector prefix to specify another goal to search: e.g.
-  "n:Search id". This is also true for SearchAbout although it is
-  deprecated.
+- "Search" "About" "SearchHead" "SearchRewrite" and "SearchPattern"
+  now search for hypothesis (of the current goal by default) first.
+  They now also support the goal selector prefix to specify another
+  goal to search: e.g. "n:Search id". This is also true for
+  SearchAbout although it is deprecated.
 - The coq/user-contrib directory and the XDG directories are no longer
   recursively added to the load path, so files from installed libraries
   now need to be fully qualified for the "Require" command to find them.
@@ -70,6 +70,9 @@ Vernacular commands
 - "Undo" undoes any command, not just tactics.
 - New "Refine Instance Mode" option that allows to deactivate the generation of
   obligations in incomplete typeclass instances, raising an error instead.
+- "Collection" command to name sets of section hypotheses.  Named collections
+  can be used in the syntax of "Proof using" to assert with section variables
+  are used in a proof.
 
 Specification Language
 
@@ -256,6 +259,8 @@ Notations
   or error when this notation is used.
 - More systematic insertion of spaces as a default for printing
   notations ("format" still available to override the default).
+- In notations, a level modifier referring to a non-existent variable is
+  now considered an error rather than silently ignored.
 
 Tools
 
@@ -278,7 +283,7 @@ Tools
 
 Interfaces
 
-- CoqIDE uses the new STM machinery, allowing for asynchronous edition.
+- CoqIDE supports asynchronous edition of the document.
 - CoqIDE highlight in yellow "unsafe" commands such as axiom
   declarations, and tactics like "admit".
 - Coqtop outputs highlighted syntax. Colors can be configured thanks
