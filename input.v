@@ -56,4 +56,9 @@ with odd_to_nat o :=
     | oe e => S (even_to_nat e)
   end.
 
-Recursive Extraction n m o emp single double d e two_arg tv num f g plus xorb app Empty_set fst even even_to_nat.
+Record point := mkPoint {
+  x : nat ;
+  y : nat
+}.
+
+Recursive Extraction n m o emp single double d e two_arg tv num f g plus xorb app Empty_set fst even even_to_nat point.
