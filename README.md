@@ -1,10 +1,12 @@
-coq2rust
+# coq2rust
 
-See input.v for examples of extracted Coq terms.
+See `input.v` for examples of extracted Coq terms.
 
 try
-$ ./configure -local
-$ ./compile.sh
+
+    $ ./configure -local
+    $ ./compile.sh
+
 at the directory containing this file.  After this, test.rs will
 contain the extracted code like this:
 
