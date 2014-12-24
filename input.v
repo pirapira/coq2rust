@@ -40,4 +40,4 @@ Definition g (d :double) :=
   | d1   => d0 tt
   end.
 
-Recursive Extraction n m o emp single double d e two_arg tv num f g plus xorb app.
+Recursive Extraction n m o emp single double d e two_arg tv num f g plus xorb app Empty_set fst.

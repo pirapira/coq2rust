@@ -39,7 +39,7 @@ let rec pp_type par vl t =
   let rec pp_rec par = function
     | Tmeta _ | Tvar' _ -> assert false
     | Tvar i ->
-      (try pp_tvar (List.nth vl (pred i))with _ -> str "hogehoge")
+      (try pp_tvar (List.nth vl (pred i))with _ -> str "a" ++ int i)
     | Tglob (r,[]) -> pp_global Type r false
     | Tglob (IndRef(kn,0),l)
 	when not (keep_singleton ()) && MutInd.equal kn (mk_ind "Coq.Init.Specif" "sig") ->
