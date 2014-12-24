@@ -46,5 +46,14 @@ Inductive even : Set :=
 with odd : Set :=
 | oe : even -> odd.
 
+Fixpoint even_to_nat e :=
+  match e with
+    | O0 => O
+    | eo o => S (odd_to_nat o)
+  end
+with odd_to_nat o :=
+  match o with
+    | oe e => S (even_to_nat e)
+  end.
 
-Recursive Extraction n m o emp single double d e two_arg tv num f g plus xorb app Empty_set fst even.
+Recursive Extraction n m o emp single double d e two_arg tv num f g plus xorb app Empty_set fst even even_to_nat.
