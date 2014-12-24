@@ -1126,7 +1126,8 @@ end = struct (* {{{ *)
       Proof_global.set_terminator
         (Lemmas.standard_proof_terminator []
           (Lemmas.mk_hook (fun _ _ -> ())));
-      let proof = Proof_global.close_proof (fun x -> x) in
+      let proof =
+        Proof_global.close_proof ~keep_body_ucst_sepatate:true (fun x -> x) in
       vernac_interp stop ~proof
         { verbose = false; loc;
           expr = (VernacEndProof (Proved (true,None))) };
@@ -1569,11 +1570,15 @@ let collect_proof keep cur hd brkind id =
         `MaybeASync (parent last, None, accn, name, delegate name)
     | `Sideff _ -> `Sync (no_name,None,`NestedProof)
     | _ -> `Sync (no_name,None,`Unknown) in
+ let make_sync why = function
+   | `Sync(name,pua,_) -> `Sync (name,pua,why)
+   | `MaybeASync(_,pua,_,name,_) -> `Sync (name,pua,why)
+   | `ASync(_,pua,_,name,_) -> `Sync (name,pua,why) in
+ let check_policy rc = if async_policy () then rc else make_sync `Policy rc in
  match cur, (VCS.visit id).step, brkind with
  | (parent, { expr = VernacExactProof _ }), `Fork _, _ ->
      `Sync (no_name,None,`Immediate)
- | _ when not (async_policy ()) -> `Sync (no_name,None,`Policy)
- | _, _, { VCS.kind = `Edit _ }  -> collect (Some cur) [] id
+ | _, _, { VCS.kind = `Edit _ }  -> check_policy (collect (Some cur) [] id)
  | _ ->
      if is_defined cur then `Sync (no_name,None,`Transparent)
      else if keep == VtDrop then `Sync (no_name,None,`Aborted)
@@ -1581,12 +1586,8 @@ let collect_proof keep cur hd brkind id =
        let rc = collect (Some cur) [] id in
        if keep == VtKeep &&
           (not(State.is_cached id) || !Flags.async_proofs_full)
-       then rc
-       else (* we already have the proof, no gain in delaying *)
-         match rc with
-         | `Sync(name,pua,_) -> `Sync (name,pua,`AlreadyEvaluated)
-         | `MaybeASync(_,pua,_,name,_) -> `Sync (name,pua,`AlreadyEvaluated)
-         | `ASync(_,pua,_,name,_) -> `Sync (name,pua,`AlreadyEvaluated)
+       then check_policy rc
+       else make_sync `AlreadyEvaluated rc
 
 let string_of_reason = function
   | `Transparent -> "Transparent"
@@ -1705,6 +1706,7 @@ let known_state ?(redefine_qed=false) ~cache id =
                 let proof =
                   if keep != VtKeep then None
                   else Some(Proof_global.close_proof
+                              ~keep_body_ucst_sepatate:false
                               (State.exn_on id ~valid:eop)) in
                 if proof = None then prerr_endline "NONE!!!!!";
                 reach view.next;

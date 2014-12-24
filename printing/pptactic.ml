@@ -623,7 +623,7 @@ module Make
 
   let pr_lazy = function
     | General -> keyword "multi"
-    | Lazy -> keyword "lazy"
+    | Select -> keyword "lazy"
     | Once -> mt ()
 
   let pr_match_pattern pr_pat = function
@@ -1205,14 +1205,19 @@ module Make
                 ++ str "||" ++ brk (1,1)
                 ++ pr_tac (lorelse,E) t2),
               lorelse
-            | TacFail (n,l) ->
+            | TacFail (g,n,l) ->
               let arg =
                 match n with
                   | ArgArg 0 -> mt ()
                   | _ -> pr_arg (pr_or_var int) n
               in
+              let name =
+                match g with
+                | TacGlobal -> keyword "gfail"
+                | TacLocal -> keyword "fail"
+              in
               hov 1 (
-                keyword "fail" ++ arg
+                name ++ arg
                 ++ prlist (pr_arg (pr_message_token pr.pr_name)) l),
               latom
             | TacFirst tl ->
