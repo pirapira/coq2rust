@@ -6,7 +6,138 @@ try
 $ ./configure -local
 $ ./compile.sh
 at the directory containing this file.  After this, test.rs will
-contain the extracted code.
+contain the extracted code like this:
+
+
+```
+enum Empty_set<> {
+ 
+}
+
+
+enum Unit<> {
+ Tt
+}
+
+
+enum Bool<> {
+ True,
+ False
+}
+
+
+fn xorb(b1: Bool, b2: Bool) -> Bool {
+  match b1 {
+  Bool::True =>
+    (match b2 {
+     Bool::True => Bool::False,
+     Bool::False => Bool::True
+     }),
+  Bool::False => b2
+  }
+}
+
+enum Nat<> {
+ O,
+ S(Box<Nat>)
+}
+
+
+enum Prod< a, b> {
+ Pair(Box<a>, Box<b>)
+}
+
+
+fn fst<p,a2>(p: Prod<p,a2>) -> p { match p {
+Prod::Pair(box x,box y) => x
+} }
+
+enum List< a> {
+ Nil,
+ Cons(Box<a>, Box<(List<a>)>)
+}
+
+
+fn app<m0>(l: List<m0>, m0: List<m0>) -> List<m0> {
+  match l {
+  List::Nil => m0,
+  List::Cons(box a,box l1) => List::Cons((box () a), (box () (app (l1,m0))))
+  }
+}
+
+fn add(n0: Nat, m0: Nat) -> Nat {
+  match n0 {
+  Nat::O => m0,
+  Nat::S(box p) => Nat::S((box () (add (p,m0))))
+  }
+}
+
+fn n() -> Unit {
+  Unit::Tt
+}
+
+fn m() -> Bool {
+  Bool::True
+}
+
+enum Emp<> {
+ 
+}
+
+
+type Single =
+  Unit;
+  // singleton inductive, whose constructor was s
+  
+fn o() -> Single {
+  Unit::Tt
+}
+
+enum Double<> {
+ D0(Box<Unit>),
+ D1
+}
+
+
+fn d() -> Double {
+  Double::D0((box () Unit::Tt))
+}
+
+fn e() -> Double {
+  Double::D1
+}
+
+enum Two_arg<> {
+ Ta(Box<Unit>, Box<Unit>)
+}
+
+
+fn tv() -> Two_arg {
+  Two_arg::Ta((box () Unit::Tt), (box () Unit::Tt))
+}
+
+fn num() -> Nat {
+  Nat::S((box () (Nat::S((box () Nat::O)))))
+}
+
+fn f(d0: Double) -> Unit {
+  Unit::Tt
+}
+
+fn g(d0: Double) -> Double { match d0 {
+Double::D0(box u) => Double::D1,
+Double::D1 => Double::D0((box () Unit::Tt))
+} }
+
+enum Even<> {
+ O',
+ Eo(Box<Odd>)
+}
+
+enum Odd<> {
+ Oe(Box<Even>)
+}
+```
 
 
 Below is the original Coq README
