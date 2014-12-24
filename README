@@ -4,7 +4,7 @@ See input.v for examples of extracted Coq terms.
 
 try
 $ ./configure -local
-$ ./compele.sh
+$ ./compile.sh
 at the directory containing this file.  After this, test.rs will
 contain the extracted code.
 
