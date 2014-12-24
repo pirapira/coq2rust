@@ -31,18 +31,27 @@ let pp_global k (r : global_reference) (cons_with_type : bool) =
 (*s Pretty-printing of types. [par] is a boolean indicating whether parentheses
     are needed or not. *)
 
+let pp_tvar id =
+  let s = Id.to_string id in
+  str s
+
 let rec pp_type par vl t =
+  let _ = Printf.eprintf "pp_type: vl length = %d\n" (List.length vl) in
   let rec pp_rec par = function
     | Tmeta _ | Tvar' _ -> assert false
-    | Tvar i -> str "a" ++ int i
+    | Tvar i ->
+      let _ = Printf.eprintf "i = %d, len = %d\n" i (List.length vl) in
+      (try pp_tvar (List.nth vl (pred i))with _ -> str "hogehoge")
     | Tglob (r,[]) -> pp_global Type r false
     | Tglob (IndRef(kn,0),l)
 	when not (keep_singleton ()) && MutInd.equal kn (mk_ind "Coq.Init.Specif" "sig") ->
+        let _ = Printf.eprintf "Tglob in pp_rec, single\n" in
 	  pp_type true vl (List.hd l)
     | Tglob (r,l) ->
+      let _ = Printf.eprintf "Tglob in pp_rec: vl_len = %d\n" (List.length vl) in
 	  pp_par par
-	    (pp_global Type r false ++ spc () ++
-	     prlist_with_sep spc (pp_type true vl) l)
+	    (pp_global Type r false ++ str "<" ++
+	     prlist_with_sep (fun () -> str ",") (pp_type true vl) l ++ str ">")
     | Tarr (t1,t2) ->
 	pp_par par
 	  (pp_rec true t1 ++ spc () ++ str "->" ++ spc () ++ pp_rec false t2)
@@ -52,9 +61,10 @@ let rec pp_type par vl t =
  in
   hov 0 (pp_rec par t)
 
-let pr_typed_id (id, typ) = str (Id.to_string id) ++ str ": " ++ pp_type false [] typ
+let pr_typed_id vl (id, typ) = str (Id.to_string id) ++ str ": " ++ pp_type false vl typ
 
 let pp_box_type par vl t =
+  let _ = Printf.eprintf "pp_box_type: " in
   str "Box<" ++ (pp_type par vl t) ++ str ">"
 
 let pp_one_ind ip pl cv =
@@ -70,8 +80,10 @@ let pp_one_ind ip pl cv =
                )
   in
   str "enum " ++
-  pp_global Type (IndRef ip) false ++
-  (prlist_strict (fun id -> str " " ++ (Nameops.pr_id id)) pl) ++ str " {" ++
+  pp_global Type (IndRef ip) false ++ str "<" ++
+  (prlist_with_sep  (fun () -> str ",")
+     (fun id -> str " " ++ (Nameops.pr_id id)) pl) ++ str ">" ++
+  str " {" ++
     fnl () ++ str " " ++
        v 0 (  prvect_with_sep (fun () -> str "," ++ fnl()) pp_constructor
 		(Array.mapi (fun i c -> ConstructRef (ip,i+1),c) cv))
@@ -85,6 +97,7 @@ let pp_logical_ind packet =
 let pp_singleton kn packet =
   let l = rename_tvars keywords packet.ip_vars in
   let l' = List.rev l in
+  let _ = Printf.eprintf "pp_singleton\n" in
   hov 2 (str "type " ++ pp_global Type (IndRef (kn,0)) false ++ spc () ++
 	 prlist_with_sep spc pr_id l ++
 	 (if not (List.is_empty l) then str " " else mt ()) ++ str "=" ++ spc () ++
@@ -106,10 +119,10 @@ let rec pp_ind kn i ind =
 	pp_one_ind ip p.ip_vars p.ip_types ++ fnl () ++
 	pp_ind kn (i+1) ind
 
-let pr_binding (lst : (Id.t * ml_type) list) : std_ppcmds =
+let pr_binding (lst : (Id.t * ml_type) list) vl : std_ppcmds =
   match lst with
     | [] -> str "()"
-    | l -> pp_par true (prlist_with_sep (fun () -> str ", ") pr_typed_id l)
+    | l -> pp_par true (prlist_with_sep (fun () -> str ", ") (pr_typed_id vl) l)
 
 let expr_needs_par = function
   | MLlam _  -> true
@@ -147,9 +160,26 @@ let pp_apply st par args = match args with
   | [] -> st
   | _  -> hov 2 (pp_par par (st ++ spc () ++ pp_par true (prlist_with_sep (fun () -> str ",") identity args)))
 
+let pp_tvar_list (vl : Names.Id.t list) (lst : int list) =
+  if List.length lst = 0 then mt () else
+    str "<" ++
+      (prlist_with_sep (fun () -> str ",") (fun i -> pp_type false vl (Tvar i)) lst)
+    ++ str ">"
+
 let pp_apply2 st par args =
   let par' = not (List.is_empty args) || par in
   pp_apply (pp_par par' st) par args
+
+let rec pick_tvars (db_env : Names.Id.t list) (typ : ml_type) : int list =
+  match typ with
+    | Tarr (typ0, typ1) -> pick_tvars db_env typ0 @ pick_tvars db_env typ1
+    | Tglob (_, lst) -> List.concat (List.map (pick_tvars db_env) lst)
+    | Tvar i -> [i]
+    | Tvar' i -> [i]
+    | Tmeta _ -> failwith "meta type variable here?"
+    | Tdummy _ -> []
+    | Tunknown -> []
+    | Taxiom -> []
 
 let rec pp_expr par env args =
   let apply st = pp_apply st par args
@@ -266,6 +296,9 @@ and pp_function env f t typ =
   let bl,t',typ = collect_lams (t, typ) (* collect_lambs should work on type as well *) in
   let bl = List.map (fun i -> (id_of_mlid (fst i), snd i)) bl in
   let bl,env' = push_vars bl env in
+  let tvars0 : int list = pick_tvars (fst env') typ in
+  let tvars1 : int list = List.concat (List.map (pick_tvars (fst env')) (List.map snd bl)) in
+  let tvars = List.sort_uniq compare (tvars0 @ tvars1) in
   match t' with
     | MLcase(Tglob(r,_),MLrel 1,pv) when
 	not (is_coinductive r) && List.is_empty (get_record_fields r) &&
@@ -275,19 +308,20 @@ and pp_function env f t typ =
        	  str " = function" ++ fnl () ++
 	  v 0 (pp_pat env' pv)
 	else *)
-          pr_binding (List.rev bl) ++ str " -> " ++ pp_type false [] typ ++
+      let _ = Printf.eprintf "pp_function 1 " in
+      pp_tvar_list (fst env') tvars ++
+          pr_binding (List.rev bl) (fst env') ++ str " -> " ++ pp_type false (fst env') typ ++
           str " { match " ++ pr_id (fst (List.hd bl)) ++ str " {" ++ fnl () ++
 	  v 0 (pp_pat env' pv)
 	  ++ fnl() ++ str "} }"
     | _ ->
-     (pr_binding (List.rev bl)) ++ str " -> " ++ pp_type false [] typ ++
+      let _ = Printf.eprintf "pp_function 2 " in
+      pp_tvar_list (fst env') tvars ++
+     (pr_binding (List.rev bl) (fst env')) ++ str " -> " ++ pp_type false (fst env') typ ++
 	  str " {" ++ fnl () ++ str "  " ++
 	  hov 2 (pp_expr false env' [] t') ++ fnl() ++ str "}"
 and pp_box_expr par env args term =
   pp_par par ((str "box () ") ++ pp_expr true env args term)
-
-let pp_fn e typ =
-  hov 4 (str "// " ++ e ++ str " :" ++ spc () ++ pp_type false [] typ)  ++ fnl2 ()
 
 let pp_decl : ml_decl -> Pp.std_ppcmds = function
   | Dind (kn, ind) when ind.ind_kind = Singleton ->
@@ -303,8 +337,7 @@ let pp_decl : ml_decl -> Pp.std_ppcmds = function
 	  failwith "custom term printing not implemented"
 	  (* hov 0 (e ++ str " = " ++ str (find_custom r) ++ fnl2 ()) *)
 	else
-	  let name = pp_global Term r false in
-	  pp_fn name t ++
+	  let name = pp_global Term r false (*XXX: add typevar list *) in
 	  hov 0 (str "fn " ++ name ++ pp_function (empty_env ()) e a t ++ fnl2 ())
   | Dfix (rv, defs, typs) ->
       let names = Array.map
