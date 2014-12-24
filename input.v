@@ -1,5 +1,7 @@
 Extraction Language Rust.
 
+Require Import List.
+
 Definition n : unit := tt.
 
 Definition m : bool := true.
@@ -61,4 +63,4 @@ Record point := mkPoint {
   y : nat
 }.
 
-Recursive Extraction n m o emp single double d e two_arg tv num f g plus xorb app Empty_set fst even even_to_nat point.
+Recursive Extraction n m o emp single double d e two_arg tv num f g plus xorb app Empty_set fst even even_to_nat point flat_map.

@@ -50,7 +50,7 @@ let rec pp_type par vl t =
 	     prlist_with_sep (fun () -> str ",") (pp_type true vl) l ++ str ">")
     | Tarr (t1,t2) ->
 	pp_par par
-	  (pp_rec true t1 ++ spc () ++ str "->" ++ spc () ++ pp_rec false t2)
+	  (str "|" ++ pp_rec true t1 ++ str "|" ++ spc () ++ str "->" ++ spc () ++ pp_rec false t2)
     | Tdummy _ -> str "()"
     | Tunknown -> str "()"
     | Taxiom -> str "() -- AXIOM TO BE REALIZED\n"
