@@ -1,6 +1,6 @@
 coq2rust
 
-See input.v for examples of extracted terms.
+See input.v for examples of extracted Coq terms.
 
 try
 $ ./configure -local
