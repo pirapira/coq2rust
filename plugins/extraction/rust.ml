@@ -36,19 +36,15 @@ let pp_tvar id =
   str s
 
 let rec pp_type par vl t =
-  let _ = Printf.eprintf "pp_type: vl length = %d\n" (List.length vl) in
   let rec pp_rec par = function
     | Tmeta _ | Tvar' _ -> assert false
     | Tvar i ->
-      let _ = Printf.eprintf "i = %d, len = %d\n" i (List.length vl) in
       (try pp_tvar (List.nth vl (pred i))with _ -> str "hogehoge")
     | Tglob (r,[]) -> pp_global Type r false
     | Tglob (IndRef(kn,0),l)
 	when not (keep_singleton ()) && MutInd.equal kn (mk_ind "Coq.Init.Specif" "sig") ->
-        let _ = Printf.eprintf "Tglob in pp_rec, single\n" in
 	  pp_type true vl (List.hd l)
     | Tglob (r,l) ->
-      let _ = Printf.eprintf "Tglob in pp_rec: vl_len = %d\n" (List.length vl) in
 	  pp_par par
 	    (pp_global Type r false ++ str "<" ++
 	     prlist_with_sep (fun () -> str ",") (pp_type true vl) l ++ str ">")
@@ -64,7 +60,6 @@ let rec pp_type par vl t =
 let pr_typed_id vl (id, typ) = str (Id.to_string id) ++ str ": " ++ pp_type false vl typ
 
 let pp_box_type par vl t =
-  let _ = Printf.eprintf "pp_box_type: " in
   str "Box<" ++ (pp_type par vl t) ++ str ">"
 
 let pp_one_ind ip pl cv =
@@ -97,7 +92,6 @@ let pp_logical_ind packet =
 let pp_singleton kn packet =
   let l = rename_tvars keywords packet.ip_vars in
   let l' = List.rev l in
-  let _ = Printf.eprintf "pp_singleton\n" in
   hov 2 (str "type " ++ pp_global Type (IndRef (kn,0)) false ++ spc () ++
 	 prlist_with_sep spc pr_id l ++
 	 (if not (List.is_empty l) then str " " else mt ()) ++ str "=" ++ spc () ++
@@ -308,14 +302,12 @@ and pp_function env f t typ =
        	  str " = function" ++ fnl () ++
 	  v 0 (pp_pat env' pv)
 	else *)
-      let _ = Printf.eprintf "pp_function 1 " in
       pp_tvar_list (fst env') tvars ++
           pr_binding (List.rev bl) (fst env') ++ str " -> " ++ pp_type false (fst env') typ ++
           str " { match " ++ pr_id (fst (List.hd bl)) ++ str " {" ++ fnl () ++
 	  v 0 (pp_pat env' pv)
 	  ++ fnl() ++ str "} }"
     | _ ->
-      let _ = Printf.eprintf "pp_function 2 " in
       pp_tvar_list (fst env') tvars ++
      (pr_binding (List.rev bl) (fst env')) ++ str " -> " ++ pp_type false (fst env') typ ++
 	  str " {" ++ fnl () ++ str "  " ++
