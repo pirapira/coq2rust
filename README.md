@@ -132,7 +132,7 @@ Double::D1 => Double::D0((box () Unit::Tt))
 } }
 
 enum Even<> {
- O',
+ O0,
  Eo(Box<Odd>)
 }
 
